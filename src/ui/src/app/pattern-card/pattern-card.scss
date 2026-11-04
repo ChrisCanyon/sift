@@ -1,0 +1,100 @@
+:host {
+  display: block;
+
+  margin-bottom: 12px;
+  border: 1px solid var(--pattern-border);
+  border-radius: 6px;
+  background: var(--panel);
+  overflow: hidden;
+
+  &.viewed {
+    opacity: 0.6;
+  }
+}
+
+.pattern-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--pattern-header);
+  cursor: pointer;
+  user-select: none;
+}
+
+.chevron {
+  width: 10px;
+  color: var(--muted);
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.description {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notes {
+  display: flex;
+  gap: 12px;
+  padding: 6px 12px 6px 34px;
+  background: var(--note-bg);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.risk {
+  color: var(--risk);
+}
+
+.member-path {
+  padding: 4px 12px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.show-all {
+  display: block;
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: var(--panel-header);
+  color: var(--accent);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+  }
+}
+
+.viewed {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    pointer-events: none;
+  }
+}

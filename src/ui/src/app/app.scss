@@ -1,0 +1,317 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.top-bar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-header);
+}
+
+.logo {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+
+.review-picker {
+  max-width: 520px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.range {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.totals {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.pr-link {
+  color: var(--accent);
+}
+
+.progress {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.progress-bar {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--chip);
+  overflow: hidden;
+
+  span {
+    display: block;
+    height: 100%;
+    background: var(--plus);
+  }
+}
+
+.shortcuts {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  cursor: help;
+}
+
+.top-action {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+  }
+}
+
+.sidebar-section-title {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 16px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.thread-status {
+  flex-shrink: 0;
+  color: var(--muted);
+
+  &[data-status='answered'] {
+    color: var(--accent);
+  }
+}
+
+.sidebar-file.viewed {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: 8px 0;
+  border-right: 1px solid var(--border);
+}
+
+.sidebar-bucket {
+  margin-bottom: 4px;
+
+  &.collapsed .sidebar-bucket-title {
+    color: var(--muted);
+  }
+}
+
+.sidebar-bucket-title,
+.sidebar-file {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+  }
+}
+
+.sidebar-bucket-title {
+  justify-content: space-between;
+  padding: 6px 16px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.count {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.sidebar-file {
+  gap: 8px;
+  padding: 3px 16px 3px 24px;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-pattern {
+  color: var(--accent);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--priority-normal);
+
+  &[data-priority='critical'] { background: var(--priority-critical); }
+  &[data-priority='high'] { background: var(--priority-high); }
+  &[data-priority='low'] { background: var(--priority-low); }
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px 64px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.summary {
+  max-width: 900px;
+  margin: 0 0 16px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.bucket {
+  margin-bottom: 20px;
+}
+
+.bucket-header {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chevron {
+  width: 12px;
+  color: var(--muted);
+}
+
+.bucket-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bucket-meta,
+.bucket-description {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.banner {
+  padding: 8px 16px;
+  font-size: 13px;
+
+  &.error {
+    background: var(--removed-bg);
+  }
+
+  &.notice {
+    background: var(--claude-bg);
+    color: var(--accent);
+    cursor: pointer;
+  }
+
+  &.warning {
+    margin-bottom: 16px;
+    border-radius: 6px;
+    background: var(--note-bg);
+    color: var(--risk);
+  }
+}
+
+.placeholder {
+  padding: 48px;
+  color: var(--muted);
+  text-align: center;
+}
+
+// Unsorted means "nobody classified this", the opposite of noise: make it unmistakable.
+.bucket.unsorted {
+  padding: 0 12px 4px;
+  border: 1px solid var(--risk);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--unsorted-bg);
+
+  .bucket-title {
+    color: var(--risk);
+  }
+}
+
+.unsorted-note {
+  color: var(--risk);
+  font-size: 13px;
+}
+
+.sidebar-bucket.unsorted .sidebar-bucket-title {
+  color: var(--risk);
+  box-shadow: inset 3px 0 0 var(--risk);
+}
+
+.unsorted-chip {
+  padding: 2px 10px;
+  border: 1px solid var(--risk);
+  border-radius: 10px;
+  background: var(--unsorted-bg);
+  color: var(--risk);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.accounted {
+  color: var(--plus);
+  font-size: 12px;
+  cursor: help;
+}
+
+.banner.reconciliation ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}

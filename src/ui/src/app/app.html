@@ -1,0 +1,146 @@
+<header class="top-bar">
+  <span class="logo">sift</span>
+  <select class="review-picker" [value]="reviewService.selectedPath() ?? ''" (change)="selectReview($any($event.target).value)">
+    @if (reviewService.reviews().reviews.length === 0) {
+      <option value="">No saved reviews</option>
+    }
+    @for (listing of reviewService.reviews().reviews; track listing.path) {
+      <option [value]="listing.path">
+        {{ listingLabel(listing) }}
+      </option>
+    }
+  </select>
+  @if (review(); as current) {
+    <span class="progress" [title]="progress().reviewed + ' of ' + progress().total + ' hunks viewed'">
+      <span class="progress-bar"><span [style.width.%]="progress().total ? (100 * progress().reviewed) / progress().total : 0"></span></span>
+      {{ progress().reviewed }}/{{ progress().total }} viewed
+    </span>
+    @if (rangeLabel(); as range) {
+      <span class="range" [title]="current.source.diffBase === 'direct' ? 'Direct: base tree vs head tree' : 'Head vs its merge base with base'">{{ range }}</span>
+    }
+    @if (current.reconciliation.problems.length === 0) {
+      <span class="accounted" title="Every file git reports as changed is here, the line counts match git, and every hunk is in exactly one bucket.">
+        ✓ {{ current.reconciliation.fileCount }} files · +{{ current.reconciliation.addedLines.toLocaleString() }} / −{{ current.reconciliation.removedLines.toLocaleString() }} accounted for
+      </span>
+    }
+    @if (unsortedHunkCount(); as unsortedCount) {
+      <button type="button" class="unsorted-chip" title="Changes no rule or AI classified. They are not noise." (click)="jumpToBucket('unsorted')">⚠ {{ unsortedCount }} unsorted</button>
+    }
+    <span class="totals">{{ totals().hiddenHunks }} hunks collapsed</span>
+    <span class="spacer"></span>
+    @if (reviewService.unpushedPrCommentCount()) {
+      <button type="button" class="top-action" (click)="reviewService.pushPrComments()">Push {{ reviewService.unpushedPrCommentCount() }} PR comment{{ reviewService.unpushedPrCommentCount() === 1 ? '' : 's' }}</button>
+    }
+    <span class="shortcuts" title="j / k: next / previous card · v: toggle viewed · o: expand / collapse">j k v o</span>
+    <button type="button" class="top-action" (click)="reviewService.finishReview()">Done</button>
+    @if (current.source.prUrl) {
+      <a class="pr-link" [href]="current.source.prUrl" target="_blank" rel="noopener">PR{{ current.source.prNumber ? ' #' + current.source.prNumber : '' }} ↗</a>
+    } @else if (current.source.compareUrl) {
+      <a class="pr-link" [href]="current.source.compareUrl" target="_blank" rel="noopener">Compare ↗</a>
+    }
+  }
+</header>
+
+@if (reviewService.notice(); as notice) {
+  <div class="banner notice" (click)="reviewService.notice.set(null)">{{ notice }}</div>
+}
+
+@if (reviewService.error(); as error) {
+  <div class="banner error">{{ error }}</div>
+}
+
+@if (review()?.reconciliation?.problems; as problems) {
+  @if (problems.length) {
+    <div class="banner error reconciliation">
+      <strong>This review does not account for everything git reports as changed ({{ problems.length }} problem{{ problems.length === 1 ? '' : 's' }}).</strong>
+      Don't treat it as complete.
+      <ul>
+        @for (problem of problems.slice(0, 10); track $index) {
+          <li><code>{{ problem.path }}</code>: {{ problem.detail }}</li>
+        }
+        @if (problems.length > 10) {
+          <li>…and {{ problems.length - 10 }} more</li>
+        }
+      </ul>
+    </div>
+  }
+}
+
+@if (review(); as current) {
+  <div class="layout">
+    <nav class="sidebar">
+      @if (activeThreads().length) {
+        <div class="sidebar-bucket">
+          <div class="sidebar-section-title">Threads <span class="count">{{ activeThreads().length }}</span></div>
+          @for (thread of activeThreads(); track thread.id) {
+            <button class="sidebar-file" [title]="thread.messages[0].body" (click)="jumpToThread(thread)">
+              <span class="thread-status" [attr.data-status]="thread.status">{{ thread.status === 'answered' ? '●' : '○' }}</span>{{ fileName(thread.anchor.filePath) }}{{ thread.anchor.line ? ':' + thread.anchor.line : '' }} · {{ thread.messages[0].body }}
+            </button>
+          }
+        </div>
+      }
+      @for (bucket of current.buckets; track bucket.id) {
+        <div class="sidebar-bucket" [class.collapsed]="!expandedBucketIds().has(bucket.id)" [class.unsorted]="bucket.id === 'unsorted'">
+          <button class="sidebar-bucket-title" (click)="toggleBucket(bucket.id)">
+            <span>{{ bucket.id === 'unsorted' ? '⚠ Unsorted: needs classification' : bucket.title }}</span>
+            <span class="count">{{ bucket.hunkCount }}</span>
+          </button>
+          @if (expandedBucketIds().has(bucket.id)) {
+            @for (pattern of bucket.patterns; track pattern.id) {
+              <button class="sidebar-file sidebar-pattern" [title]="pattern.description" (click)="jumpToElement(bucket, patternElementId(bucket, pattern.id))">
+                <span class="dot" [attr.data-priority]="pattern.priority"></span>×{{ pattern.members.length }} {{ pattern.description }}
+              </button>
+            }
+            @for (file of bucket.files; track file.path) {
+              <button class="sidebar-file" [class.viewed]="isFileViewed(file)" [title]="file.path" (click)="jumpToElement(bucket, fileElementId(bucket, file))">
+                <span class="dot" [attr.data-priority]="file.priority"></span>{{ fileName(file.path) }}
+              </button>
+            }
+          }
+        </div>
+      }
+    </nav>
+
+    <main class="content">
+      @if (current.title) {
+        <h1>{{ current.title }}</h1>
+      }
+      @if (current.summary) {
+        <p class="summary">{{ current.summary }}</p>
+      }
+      @if (hasUnmatched()) {
+        <div class="banner warning">
+          The review references {{ current.unmatchedHunkIds.length }} hunks, {{ current.unmatchedFilePaths.length }} files and {{ current.unmatchedPatternIds.length }} patterns that aren't in this diff. It may be stale or mis-generated; affected changes show as Unsorted.
+        </div>
+      }
+
+      @for (bucket of current.buckets; track bucket.id) {
+        <section class="bucket" [id]="'bucket-' + bucket.id" [class.unsorted]="bucket.id === 'unsorted'">
+          <button class="bucket-header" (click)="toggleBucket(bucket.id)">
+            <span class="chevron">{{ expandedBucketIds().has(bucket.id) ? '▾' : '▸' }}</span>
+            <span class="bucket-title">{{ bucket.id === 'unsorted' ? '⚠ Unsorted: needs classification' : bucket.title }}</span>
+            @if (bucket.id === 'unsorted') {
+              <span class="unsorted-note">Not classified by a rule or the AI. Not noise: review these like core changes.</span>
+            }
+            <span class="bucket-meta">{{ bucketSummary(bucket) }}</span>
+            @if (bucket.description) {
+              <span class="bucket-description">{{ bucket.description }}</span>
+            }
+          </button>
+          @if (expandedBucketIds().has(bucket.id)) {
+            @for (pattern of bucket.patterns; track pattern.id) {
+              <sift-pattern-card [id]="patternElementId(bucket, pattern.id)" [pattern]="pattern" />
+            }
+            @for (file of bucket.files; track file.path) {
+              <sift-file-card [id]="fileElementId(bucket, file)" [file]="file" />
+            }
+          }
+        </section>
+      }
+    </main>
+  </div>
+} @else if (reviewService.loading()) {
+  <div class="placeholder">Loading diff…</div>
+} @else if (!reviewService.error()) {
+  <div class="placeholder">No review loaded. Run <code>/sift &lt;PR&gt;</code> in Claude Code to create one.</div>
+}

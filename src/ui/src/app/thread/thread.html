@@ -1,0 +1,39 @@
+<header (click)="collapsed.set(!collapsed())">
+  <span class="kind" [attr.data-kind]="thread().kind">{{ kindLabel() }}</span>
+  @if (thread().anchor.line) {
+    <span class="anchor">{{ thread().anchor.side === 'old' ? 'old ' : '' }}L{{ thread().anchor.line }}</span>
+  }
+  <span class="status" [attr.data-status]="thread().status">
+    @if (isWaitingForClaude()) {
+      waiting for Claude…
+    } @else {
+      {{ thread().status }}
+    }
+  </span>
+  @if (collapsed()) {
+    <span class="preview">{{ thread().messages[0].body }}</span>
+  }
+</header>
+@if (!collapsed()) {
+  @for (message of thread().messages; track $index) {
+    <div class="message" [attr.data-author]="message.author">
+      <div class="author">{{ message.author === 'you' ? 'You' : 'Claude' }} <span class="time">{{ message.at | date: 'shortTime' }}</span></div>
+      <div class="body">{{ message.body }}</div>
+    </div>
+  }
+  @if (replying()) {
+    <sift-composer [showKinds]="false" placeholder="Reply…" (submitted)="sendReply($event)" (cancelled)="replying.set(false)" />
+  } @else {
+    <div class="actions">
+      <button type="button" (click)="replying.set(true)">Reply</button>
+      @if (thread().kind === 'pr' && thread().status !== 'pushed') {
+        <button type="button" (click)="reviewService.pushPrComments([thread().id])">Push to PR</button>
+      }
+      @if (!isResolved()) {
+        <button type="button" (click)="reviewService.setThreadStatus(thread().id, 'done')">Resolve</button>
+      } @else if (thread().status === 'done') {
+        <button type="button" (click)="reviewService.setThreadStatus(thread().id, 'open')">Reopen</button>
+      }
+    </div>
+  }
+}

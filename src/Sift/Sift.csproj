@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sift.Core\Sift.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RunWorkingDirectory>$(MSBuildStartupDirectory)</RunWorkingDirectory>
+    <UiRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\ui'))\</UiRoot>
+    <UiOutput>$(UiRoot)dist\sift-ui\browser\</UiOutput>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>sift</ToolCommandName>
+    <PackageId>Sift.Review</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Chris Nagy</Authors>
+    <Description>Local PR review for large AI-generated diffs: core changes first, renames and noise grouped and collapsed, Claude Code in the loop.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ChrisCanyon/sift</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ChrisCanyon/sift</RepositoryUrl>
+    <PackageTags>code-review;git;diff;claude;ai</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sift.Tests" />
+    <UiSource Include="$(UiRoot)src\**\*;$(UiRoot)public\**\*;$(UiRoot)angular.json;$(UiRoot)package.json;$(UiRoot)tsconfig*.json" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <Target Name="InstallUiPackages" Condition="!Exists('$(UiRoot)node_modules')" BeforeTargets="BuildUi">
+    <Exec Command="npm ci" WorkingDirectory="$(UiRoot)" StandardOutputImportance="low" />
+  </Target>
+
+  <!-- Rebuilds the Angular UI only when its sources are newer than the last build. -->
+  <Target Name="BuildUi" BeforeTargets="AssignTargetPaths" Inputs="@(UiSource)" Outputs="$(UiOutput)index.html">
+    <Exec Command="npm run build" WorkingDirectory="$(UiRoot)" StandardOutputImportance="low" />
+  </Target>
+
+  <!-- Built UI ships next to the binaries under ui/; None items keep it out of the static web assets pipeline. -->
+  <Target Name="IncludeBuiltUi" AfterTargets="BuildUi" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <BuiltUiFile Include="$(UiOutput)**\*" />
+      <None Include="@(BuiltUiFile)" Link="ui\%(BuiltUiFile.RecursiveDir)%(BuiltUiFile.Filename)%(BuiltUiFile.Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
+</Project>

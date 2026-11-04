@@ -1,0 +1,81 @@
+@if (hunk().reason || hunk().risk || showsOwnPriority()) {
+  <div class="hunk-notes">
+    @if (showsOwnPriority()) {
+      <span class="priority" [attr.data-priority]="hunk().priority">{{ hunk().priority }}</span>
+    }
+    @if (hunk().reason) {
+      <span class="reason">{{ hunk().reason }}</span>
+    }
+    @if (hunk().classifiedBy === 'rule' && hunk().reason) {
+      <span class="rule-tag">rule</span>
+    }
+    @if (hunk().risk) {
+      <span class="risk">⚠ {{ hunk().risk }}</span>
+    }
+  </div>
+}
+@for (note of aiNotes(); track $index) {
+  <div class="ai-note">
+    <span class="ai-label">Claude{{ note.line ? ' · L' + note.line : '' }}</span>
+    @for (message of note.messages; track $index) {
+      <span class="ai-body">{{ message.body }}</span>
+    }
+  </div>
+}
+<table class="diff">
+  <tbody>
+    <tr class="hunk-header">
+      <td class="line-number" colspan="2"></td>
+      <td class="code">
+        {{ header() }}
+        <button type="button" class="comment-hunk" title="Comment on this hunk" (click)="openComposer(null)">💬</button>
+      </td>
+    </tr>
+    @if (canExpandAbove()) {
+      <tr class="expand">
+        <td colspan="3"><button type="button" [disabled]="expanding()" (click)="expandAbove()">↑ Show 20 more lines</button></td>
+      </tr>
+    }
+    @for (rendered of contextAbove(); track rendered.line.newLineNumber) {
+      <tr class="context expanded-context">
+        <td class="line-number clickable" (click)="openComposer(rendered.line)">{{ rendered.line.oldLineNumber }}</td>
+        <td class="line-number clickable" (click)="openComposer(rendered.line)">{{ rendered.line.newLineNumber }}</td>
+        <td class="code"><span class="marker"> </span>@if (rendered.segments[0].html) {<span [innerHTML]="rendered.segments[0].html"></span>} @else {{{ rendered.line.text }}}</td>
+      </tr>
+    }
+    @for (rendered of renderedLines(); track $index) {
+      @if (rendered.startsMove && rendered.move; as move) {
+        <tr class="move-label">
+          <td class="line-number" colspan="2"></td>
+          <td class="code">{{ moveLabel(move) }}</td>
+        </tr>
+      }
+      <tr [class]="rendered.line.kind" [class.moved]="!!rendered.move" [class.selected]="composerLine() === rendered.line" [class.has-thread]="hasThreadOn(rendered.line)">
+        <td class="line-number clickable" title="Comment on this line" (click)="openComposer(rendered.line)">{{ rendered.line.oldLineNumber }}</td>
+        <td class="line-number clickable" title="Comment on this line" (click)="openComposer(rendered.line)">{{ rendered.line.newLineNumber }}</td>
+        <td class="code"><span class="marker">{{ rendered.line.kind === 'added' ? '+' : rendered.line.kind === 'removed' ? '-' : ' ' }}</span>@for (segment of rendered.segments; track $index) {@if (segment.html) {<span [class.changed]="segment.changed" [innerHTML]="segment.html"></span>} @else {<span [class.changed]="segment.changed">{{ segment.text }}</span>}}@if (rendered.line.noNewlineAtEnd) {<span class="no-newline" title="No newline at end of file">⏎̸</span>}</td>
+      </tr>
+    }
+    @for (rendered of contextBelow(); track rendered.line.newLineNumber) {
+      <tr class="context expanded-context">
+        <td class="line-number clickable" (click)="openComposer(rendered.line)">{{ rendered.line.oldLineNumber }}</td>
+        <td class="line-number clickable" (click)="openComposer(rendered.line)">{{ rendered.line.newLineNumber }}</td>
+        <td class="code"><span class="marker"> </span>@if (rendered.segments[0].html) {<span [innerHTML]="rendered.segments[0].html"></span>} @else {{{ rendered.line.text }}}</td>
+      </tr>
+    }
+    @if (!reachedEndOfFile()) {
+      <tr class="expand">
+        <td colspan="3"><button type="button" [disabled]="expanding()" (click)="expandBelow()">↓ Show 20 more lines</button></td>
+      </tr>
+    }
+  </tbody>
+</table>
+@if (composerLine() !== undefined) {
+  @if (composerLine(); as line) {
+    <div class="composer-anchor">Line {{ line.newLineNumber ?? line.oldLineNumber }}: <code>{{ line.text }}</code></div>
+  }
+  <sift-composer (submitted)="submit($event)" (cancelled)="composerLine.set(undefined)" />
+}
+@for (thread of threads(); track thread.id) {
+  <sift-thread [thread]="thread" />
+}

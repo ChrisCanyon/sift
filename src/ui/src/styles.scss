@@ -1,0 +1,114 @@
+:root {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --panel: #0d1117;
+  --panel-header: #161b22;
+  --border: #30363d;
+  --hover: #1f2630;
+  --chip: #21262d;
+  --text: #e6edf3;
+  --text-soft: #c9d1d9;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --plus: #3fb950;
+  --minus: #f85149;
+  --risk: #d29922;
+  --note-bg: #1c1d14;
+  --hunk-header-bg: #121d2f;
+  --added-bg: #12261e;
+  --added-gutter: #1a3a2a;
+  --removed-bg: #2d1416;
+  --removed-gutter: #4a1c20;
+  --priority-critical: #f85149;
+  --priority-high: #d29922;
+  --priority-normal: #58a6ff;
+  --priority-low: #6e7681;
+  --pattern-border: #1f3b5c;
+  --pattern-header: #111c2b;
+  --added-word: #2b6a3f;
+  --removed-word: #7a2a30;
+  --claude-bg: #111a26;
+  --moved-bg: #1d1a2e;
+  --moved-gutter: #2a2542;
+  --moved-text: #b4a7ff;
+  --expanded-bg: #0f141b;
+  --unsorted-bg: #21190a;
+  --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+}
+
+a {
+  text-decoration: none;
+}
+
+code {
+  font-family: var(--mono);
+}
+
+.priority {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--chip);
+  color: var(--priority-normal);
+
+  &[data-priority='critical'] { color: var(--priority-critical); }
+  &[data-priority='high'] { color: var(--priority-high); }
+  &[data-priority='low'] { color: var(--priority-low); }
+}
+
+.rule-tag {
+  font-size: 10px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-type,
+.hljs-variable.language_ { color: #ff7b72; }
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_ { color: #d2a8ff; }
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-variable { color: #79c0ff; }
+.hljs-meta .hljs-string,
+.hljs-regexp,
+.hljs-string { color: #a5d6ff; }
+.hljs-built_in,
+.hljs-symbol { color: #ffa657; }
+.hljs-code,
+.hljs-comment,
+.hljs-formula { color: #8b949e; }
+.hljs-name,
+.hljs-quote,
+.hljs-selector-pseudo,
+.hljs-selector-tag { color: #7ee787; }
+
+.keyboard-current {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

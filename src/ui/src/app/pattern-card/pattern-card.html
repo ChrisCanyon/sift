@@ -1,0 +1,38 @@
+<header class="pattern-header" (click)="expanded.set(!expanded())">
+  <span class="chevron">{{ expanded() ? '▾' : '▸' }}</span>
+  <span class="badge">×{{ pattern().members.length }}</span>
+  <span class="description">{{ pattern().description }}</span>
+  <span class="priority" [attr.data-priority]="pattern().priority">{{ pattern().priority }}</span>
+  @if (pattern().classifiedBy === 'rule') {
+    <span class="rule-tag" title="Classified by a deterministic rule">rule</span>
+  }
+  <span class="meta">{{ kindLabel() }} in {{ pattern().fileCount }} files</span>
+  <label class="viewed" (click)="toggleViewed($event)"><input type="checkbox" [checked]="viewed()" tabindex="-1" /> Viewed</label>
+</header>
+@if (pattern().reason || pattern().risk) {
+  <div class="notes">
+    @if (pattern().reason) {
+      <span>{{ pattern().reason }}</span>
+    }
+    @if (pattern().risk) {
+      <span class="risk">⚠ {{ pattern().risk }}</span>
+    }
+  </div>
+}
+@if (expanded()) {
+  <div class="member-path">Example: {{ sample().path }}</div>
+  <sift-hunk [hunk]="sample().hunk" [filePriority]="pattern().priority" [filePath]="sample().path" [patternId]="pattern().id" />
+  <button class="show-all" (click)="showAllMembers.set(!showAllMembers())">
+    {{ showAllMembers() ? 'Hide' : 'Show' }} the other {{ otherMembers().length }}
+  </button>
+  @if (showAllMembers()) {
+    @for (member of otherMembers(); track member.hunk.id) {
+      <div class="member-path">{{ member.path }}</div>
+      @defer (on viewport) {
+        <sift-hunk [hunk]="member.hunk" [filePriority]="pattern().priority" [filePath]="member.path" [patternId]="pattern().id" />
+      } @placeholder {
+        <div [style.height.px]="28 + member.hunk.lines.length * 20"></div>
+      }
+    }
+  }
+}

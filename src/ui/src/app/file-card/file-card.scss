@@ -1,0 +1,119 @@
+:host {
+  display: block;
+
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  overflow: hidden;
+
+  &.viewed {
+    opacity: 0.6;
+  }
+}
+
+.file-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--panel-header);
+  cursor: pointer;
+  user-select: none;
+}
+
+.chevron {
+  width: 10px;
+  color: var(--muted);
+}
+
+.change {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--chip);
+
+  &[data-change='added'] { color: var(--plus); }
+  &[data-change='deleted'] { color: var(--minus); }
+  &[data-change='renamed'], &[data-change='copied'] { color: var(--accent); }
+}
+
+.path {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.old-path {
+  color: var(--muted);
+}
+
+.partial {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.counts {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.plus { color: var(--plus); }
+.minus { color: var(--minus); }
+
+.file-notes {
+  display: flex;
+  gap: 12px;
+  padding: 6px 12px 6px 34px;
+  background: var(--note-bg);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.risk {
+  color: var(--risk);
+}
+
+.empty {
+  padding: 10px 34px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.thread-count {
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.viewed {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    pointer-events: none;
+  }
+}
+
+.line-endings {
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}

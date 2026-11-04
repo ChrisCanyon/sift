@@ -1,0 +1,56 @@
+<header class="file-header" (click)="expanded.set(!expanded())">
+  <span class="chevron">{{ expanded() ? '▾' : '▸' }}</span>
+  <span class="change" [attr.data-change]="file().change">{{ changeLabel() }}</span>
+  <span class="path">
+    @if (file().oldPath) {
+      <span class="old-path">{{ file().oldPath }} →</span>
+    }
+    {{ file().path }}
+  </span>
+  <span class="priority" [attr.data-priority]="file().priority">{{ file().priority }}</span>
+  @if (file().classifiedBy === 'rule') {
+    <span class="rule-tag" title="Classified by a deterministic rule">rule</span>
+  }
+  @if (isPartial()) {
+    <span class="partial">{{ file().hunks.length }} of {{ file().totalHunkCount }} hunks</span>
+  }
+  @if (threadCount()) {
+    <span class="thread-count" title="Threads">💬 {{ threadCount() }}</span>
+  }
+  @if (file().lineEndingChangedLines && file().hunks.length) {
+    <span class="line-endings" title="Lines whose only change was CRLF vs LF are hidden">line endings changed · {{ file().lineEndingChangedLines }} lines hidden</span>
+  }
+  <span class="counts"><span class="plus">+{{ file().added }}</span> <span class="minus">−{{ file().removed }}</span></span>
+  <label class="viewed" (click)="toggleViewed($event)"><input type="checkbox" [checked]="viewed()" tabindex="-1" /> Viewed</label>
+</header>
+@if (file().reason || file().risk) {
+  <div class="file-notes">
+    @if (file().reason) {
+      <span>{{ file().reason }}</span>
+    }
+    @if (file().risk) {
+      <span class="risk">⚠ {{ file().risk }}</span>
+    }
+  </div>
+}
+@if (expanded()) {
+  @if (file().binary) {
+    <div class="empty">Binary file</div>
+  } @else if (file().hunks.length === 0) {
+    <div class="empty">
+      @if (file().lineEndingChangedLines) {
+        Only line endings changed ({{ file().lineEndingChangedLines }} lines, CRLF ↔ LF){{ file().change === 'renamed' ? ', and the file was renamed' : '' }}
+      } @else {
+        {{ file().change === 'renamed' ? 'Renamed without content changes' : 'No content changes' }}
+      }
+    </div>
+  } @else {
+    @defer (on viewport) {
+      @for (hunk of file().hunks; track hunk.id) {
+        <sift-hunk [hunk]="hunk" [filePriority]="file().priority" [filePath]="file().path" />
+      }
+    } @placeholder {
+      <div [style.height.px]="estimatedHeight()"></div>
+    }
+  }
+}
