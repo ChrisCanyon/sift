@@ -1,6 +1,6 @@
 ---
 name: sift
-description: Triage a large pull request, release compare, or branch diff for review with Sift, a local diff viewer that buckets and prioritizes changes so core code shows first and noise (renames, lockfiles, generated code, formatting) is collapsed. Use when the user runs /sift with a PR URL, PR number, GitHub compare URL, or branch range, or asks to sift/triage a PR or release diff for review.
+description: Triage a large pull request, release compare, or branch diff for review with Sift, a local diff viewer that buckets and prioritizes changes so core code shows first and noise (renames, lockfiles, generated code, formatting) is collapsed. Use when the user runs /sift with a PR URL, PR number, GitHub compare URL, or branch range, or asks to sift/triage a PR or release diff for review. Also use for `/sift listen <review file>`, which reconnects Claude to an existing review.
 ---
 
 # Sift
@@ -8,6 +8,14 @@ description: Triage a large pull request, release compare, or branch diff for re
 Sift shows a PR diff with hunks grouped into buckets and ordered by priority. You classify; the app reads the diff from git itself. Never copy diff content into the review file.
 
 Requires the `sift` command (`dotnet tool install -g Sift.Review`; see https://github.com/ChrisCanyon/sift). If `sift` is not on PATH, tell the user how to install it and stop.
+
+## Listen mode: `/sift listen <review file>`
+
+The Sift page shows this command when no Claude is listening on a review (an old PR, or a watch that died). Skip steps 1 to 4:
+
+1. Read the review file's `source`. Check the PR head hasn't moved: for a PR, compare `gh pr view <prUrl> --json headRefOid` with `source.headSha`. If it moved, tell the user the review is stale and offer to re-run `/sift <prUrl>`, but still listen, because their threads are on this review.
+2. Make sure the server is up (step 5); start it without `--source` if it isn't.
+3. Listen (step 6). The replay hands you everything that piled up while nobody listened; work through it in order.
 
 ## 1. Resolve the target
 

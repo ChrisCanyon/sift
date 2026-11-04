@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Sift.Core;
 using Sift.Core.Git;
+using Sift.Core.Listening;
 using Sift.Core.Review;
 using Sift.Core.State;
 
@@ -32,6 +33,7 @@ public static class ServerCommand
         var reviewStore = new ReviewStore(SiftPaths.ReviewsPath);
         var stateStore = new ReviewStateStore();
         var eventHub = new EventHub();
+        var listenerRegistry = new ListenerRegistry(SiftPaths.ListenersPath);
 
         string? sourcePath = null;
         if (options.TryGetValue("source", out var sourceArgument))
@@ -205,11 +207,14 @@ public static class ServerCommand
             }
         });
 
+        app.MapGet("/api/listeners", () => new { reviews = LiveListenerReviews(listenerRegistry) });
+
         app.MapGet("/api/events", (HttpContext context) => eventHub.StreamToBrowserAsync(context.Response, context.RequestAborted));
 
         app.MapFallbackToFile("index.html");
 
         using var reviewWatcher = WatchReviewFiles(reviewStore.RootPath, sourcePath, eventHub);
+        _ = PublishListenerChangesAsync(listenerRegistry, eventHub, app.Lifetime.ApplicationStopping);
 
         app.Lifetime.ApplicationStarted.Register(() =>
         {
@@ -254,6 +259,31 @@ public static class ServerCommand
     }
 
     private static IResult UnknownReview(string reviewPath) => Results.NotFound(new { error = $"Unknown review: {reviewPath}" });
+
+    private static IReadOnlyList<string> LiveListenerReviews(ListenerRegistry registry) =>
+        registry.ListLive().Select(listener => listener.Review).Order(StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>Polls rather than watching files: a killed watcher changes no file, it just stops heartbeating.</summary>
+    private static async Task PublishListenerChangesAsync(ListenerRegistry registry, EventHub eventHub, CancellationToken stopping)
+    {
+        IReadOnlyList<string> published = [];
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stopping))
+            {
+                var live = LiveListenerReviews(registry);
+                if (!live.SequenceEqual(published, StringComparer.OrdinalIgnoreCase))
+                {
+                    published = live;
+                    eventHub.PublishToBrowsers("listeners-changed", new { reviews = live });
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
 
     private static FileSystemWatcher? WatchReviewFiles(string reviewsRoot, string? sourcePath, EventHub eventHub)
     {

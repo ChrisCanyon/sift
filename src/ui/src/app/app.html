@@ -6,7 +6,7 @@
     }
     @for (listing of reviewService.reviews().reviews; track listing.path) {
       <option [value]="listing.path">
-        {{ listingLabel(listing) }}
+        {{ reviewService.isListening(listing.path) ? '● ' : '' }}{{ listingLabel(listing) }}
       </option>
     }
   </select>
@@ -28,6 +28,11 @@
     }
     <span class="totals">{{ totals().hiddenHunks }} hunks collapsed</span>
     <span class="spacer"></span>
+    @if (reviewService.isClaudeListening()) {
+      <span class="claude-status listening" title="A Claude session is watching this review and will pick up questions, changes and pushes.">● Claude listening</span>
+    } @else {
+      <span class="claude-status" title="No Claude session is watching this review.">○ No Claude</span>
+    }
     @if (reviewService.unpushedPrCommentCount()) {
       <button type="button" class="top-action" (click)="reviewService.pushPrComments()">Push {{ reviewService.unpushedPrCommentCount() }} PR comment{{ reviewService.unpushedPrCommentCount() === 1 ? '' : 's' }}</button>
     }
@@ -43,6 +48,14 @@
 
 @if (reviewService.notice(); as notice) {
   <div class="banner notice" (click)="reviewService.notice.set(null)">{{ notice }}</div>
+}
+
+@if (review() && !reviewService.isClaudeListening()) {
+  <div class="banner listen">
+    No Claude is listening on this review. Questions, changes and pushes wait until one does. Paste this into Claude Code:
+    <code>{{ reviewService.listenCommand() }}</code>
+    <button type="button" class="top-action" (click)="reviewService.copyListenCommand()">Copy</button>
+  </div>
 }
 
 @if (reviewService.error(); as error) {
