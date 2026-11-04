@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -27,6 +29,9 @@ public static class ServerCommand
 {
     public const string RequestHeaderName = "X-Sift";
 
+    /// <summary>A stable address lets an open page reconnect after the server restarts.</summary>
+    public const int DefaultPort = 5317;
+
     public static async Task<int> RunAsync(string[] commandArguments)
     {
         var options = CommandLineOptions.Parse(commandArguments);
@@ -48,7 +53,7 @@ public static class ServerCommand
             reviewStore.Register(sourcePath);
         }
 
-        var port = options.TryGetValue("port", out var portArgument) ? int.Parse(portArgument) : 0;
+        var port = options.TryGetValue("port", out var portArgument) ? int.Parse(portArgument) : ChooseDefaultPort();
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             ContentRootPath = AppContext.BaseDirectory,
@@ -259,6 +264,22 @@ public static class ServerCommand
     }
 
     private static IResult UnknownReview(string reviewPath) => Results.NotFound(new { error = $"Unknown review: {reviewPath}" });
+
+    private static int ChooseDefaultPort()
+    {
+        try
+        {
+            var probe = new TcpListener(IPAddress.Loopback, DefaultPort);
+            probe.Start();
+            probe.Stop();
+            return DefaultPort;
+        }
+        catch (SocketException)
+        {
+            Console.Error.WriteLine($"Port {DefaultPort} is in use; using a random port. Pages open on the old address will not reconnect.");
+            return 0;
+        }
+    }
 
     private static IReadOnlyList<string> LiveListenerReviews(ListenerRegistry registry) =>
         registry.ListLive().Select(listener => listener.Review).Order(StringComparer.OrdinalIgnoreCase).ToList();

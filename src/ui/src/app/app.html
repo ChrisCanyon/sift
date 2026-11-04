@@ -50,7 +50,9 @@
   <div class="banner notice" (click)="reviewService.notice.set(null)">{{ notice }}</div>
 }
 
-@if (review() && !reviewService.isClaudeListening()) {
+@if (!reviewService.serverConnected()) {
+  <div class="banner error">Lost the Sift server. Reconnecting… Start it again with <code>sift</code> if it stopped.</div>
+} @else if (review() && !reviewService.isClaudeListening()) {
   <div class="banner listen">
     No Claude is listening on this review. Questions, changes and pushes wait until one does. Paste this into Claude Code:
     <code>{{ reviewService.listenCommand() }}</code>

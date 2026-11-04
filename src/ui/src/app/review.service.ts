@@ -17,6 +17,7 @@ export class ReviewService {
   readonly error = signal<string | null>(null);
   readonly notice = signal<string | null>(null);
   readonly listeningReviewPaths = signal<string[]>([]);
+  readonly serverConnected = signal(true);
 
   readonly isClaudeListening = computed(() => this.isListening(this.selectedPath()));
   readonly listenCommand = computed(() => `/sift listen "${this.selectedPath() ?? ''}"`);
@@ -130,6 +131,20 @@ export class ReviewService {
       return;
     }
     this.events = new EventSource('/api/events');
+    this.events.addEventListener('open', () => {
+      if (!this.serverConnected()) {
+        this.serverConnected.set(true);
+        void this.resync();
+      }
+    });
+    this.events.addEventListener('error', () => {
+      this.serverConnected.set(false);
+      // The browser retries network errors itself but gives up on HTTP errors.
+      if (this.events?.readyState === EventSource.CLOSED) {
+        this.events = undefined;
+        setTimeout(() => this.listenForChanges(), 3000);
+      }
+    });
     this.events.addEventListener('state-changed', event => {
       if (samePath(JSON.parse((event as MessageEvent).data).review, this.selectedPath())) {
         void this.reloadState();
@@ -145,6 +160,20 @@ export class ReviewService {
       }
       void this.getJson<ReviewList>('/api/reviews').then(list => this.reviews.set(list));
     });
+  }
+
+  // Anything may have changed while the server was down.
+  private async resync(): Promise<void> {
+    try {
+      this.reviews.set(await this.getJson<ReviewList>('/api/reviews'));
+      await this.loadListeners();
+      const path = this.selectedPath();
+      if (path) {
+        await this.openReview(path);
+      }
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : String(error));
+    }
   }
 
   private async refreshReview(): Promise<void> {
