@@ -46,7 +46,7 @@ From source: `dotnet run --project src/Sift -- <args>` (the UI builds on the fir
 - **Diff:** read from plain git (`merge-base..head`); the review file only points at SHAs, never copies diff content.
 - **Deterministic sorting:** path rules (lockfiles, generated, docs, tests, binaries, pure moves) and whitespace-only hunks. Repeated changes are grouped into patterns by token-level replacement (e.g. `Foo → Bar` across 200 files), so a hunk that does the rename *plus* something else stands out.
 - **AI sorting:** Claude classifies what is left, per hunk, pattern or file, with a reason and a risk. The most specific classification wins; nothing is hidden silently (unclassified hunks land in Unsorted at the top).
-- **Loop:** UI actions are JSON events on stdout and `~/.sift/events.jsonl`; `sift reply` answers appear live. Reviewer state lives next to the review in `<review>.state.json`.
+- **Loop:** UI actions are saved with the review; `sift watch --review <file>` replays what's outstanding and streams new requests as JSON lines, one listener per review. `sift reply` answers appear live. Reviewer state lives next to the review in `<review>.state.json`.
 - **Local only:** binds to 127.0.0.1, rejects foreign Host headers, and refuses cross-site writes so other pages can't send instructions to the agent.
 
 Keyboard: `j`/`k` next/previous card, `v` toggle viewed, `o` expand/collapse. Click a line number to comment on that line.

@@ -97,6 +97,27 @@ public sealed class ReviewStateStore
         return updated!;
     }
 
+    /// <summary>Flags unpushed PR comments for Claude to post; returns the flagged threads.</summary>
+    public async Task<IReadOnlyList<UserThread>> RequestPushAsync(string reviewPath, IReadOnlyCollection<string>? threadIds, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<UserThread> requested = [];
+        await UpdateAsync(reviewPath, state =>
+        {
+            var threads = state.Threads
+                .Select(thread => thread.Kind == ThreadKind.Pr && thread.Status != ThreadStatus.Pushed && (threadIds is null || threadIds.Contains(thread.Id))
+                    ? thread with { PushRequested = true }
+                    : thread)
+                .ToList();
+            requested = threads.Where(thread => thread.PushRequested && thread.Status != ThreadStatus.Pushed && (threadIds is null || threadIds.Contains(thread.Id))).ToList();
+            return state with { Threads = threads };
+        }, cancellationToken);
+
+        return requested;
+    }
+
+    public Task<ReviewState> RequestDoneAsync(string reviewPath, CancellationToken cancellationToken = default) =>
+        UpdateAsync(reviewPath, state => state with { DoneRequestedAt = timeProvider.GetUtcNow() }, cancellationToken);
+
     private static ReviewState ReplaceThread(ReviewState state, UserThread updated) =>
         state with { Threads = state.Threads.Select(thread => thread.Id == updated.Id ? updated : thread).ToList() };
 

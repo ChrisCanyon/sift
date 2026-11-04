@@ -16,6 +16,11 @@ export class ReviewService {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly notice = signal<string | null>(null);
+  readonly listeningReviewPaths = signal<string[]>([]);
+  readonly serverConnected = signal(true);
+
+  readonly isClaudeListening = computed(() => this.isListening(this.selectedPath()));
+  readonly listenCommand = computed(() => `/sift listen "${this.selectedPath() ?? ''}"`);
 
   readonly reviewedKeys = computed(() => new Set(this.state().reviewedKeys));
   readonly threadsByHunkId = computed(() => {
@@ -41,6 +46,20 @@ export class ReviewService {
       }
     }
     this.listenForChanges();
+    await this.loadListeners();
+  }
+
+  private async loadListeners(): Promise<void> {
+    this.listeningReviewPaths.set((await this.getJson<{ reviews: string[] }>('/api/listeners')).reviews);
+  }
+
+  isListening(path: string | null | undefined): boolean {
+    return this.listeningReviewPaths().some(listeningPath => samePath(listeningPath, path));
+  }
+
+  async copyListenCommand(): Promise<void> {
+    await navigator.clipboard.writeText(this.listenCommand());
+    this.notice.set('Copied. Paste it into any Claude Code session to start listening on this review.');
   }
 
   async openReview(path: string): Promise<void> {
@@ -84,12 +103,15 @@ export class ReviewService {
 
   async pushPrComments(threadIds?: string[]): Promise<void> {
     const result = await this.post<{ queued: number }>('/api/push', { threadIds });
-    this.notice.set(`Sent ${result.queued} comment${result.queued === 1 ? '' : 's'} to Claude to post on the PR.`);
+    const comments = `${result.queued} comment${result.queued === 1 ? '' : 's'}`;
+    this.notice.set(this.isClaudeListening()
+      ? `Sent ${comments} to Claude to post on the PR.`
+      : `Queued ${comments}. No Claude is listening on this review yet; they post once one does.`);
   }
 
   async finishReview(): Promise<void> {
     await this.post('/api/done', {});
-    this.notice.set('Told Claude the review is done.');
+    this.notice.set(this.isClaudeListening() ? 'Told Claude the review is done.' : 'Marked done. No Claude is listening on this review.');
   }
 
   async getFileLines(path: string, side: 'new' | 'old', start: number, end: number): Promise<FileLines> {
@@ -109,10 +131,27 @@ export class ReviewService {
       return;
     }
     this.events = new EventSource('/api/events');
+    this.events.addEventListener('open', () => {
+      if (!this.serverConnected()) {
+        this.serverConnected.set(true);
+        void this.resync();
+      }
+    });
+    this.events.addEventListener('error', () => {
+      this.serverConnected.set(false);
+      // The browser retries network errors itself but gives up on HTTP errors.
+      if (this.events?.readyState === EventSource.CLOSED) {
+        this.events = undefined;
+        setTimeout(() => this.listenForChanges(), 3000);
+      }
+    });
     this.events.addEventListener('state-changed', event => {
       if (samePath(JSON.parse((event as MessageEvent).data).review, this.selectedPath())) {
         void this.reloadState();
       }
+    });
+    this.events.addEventListener('listeners-changed', event => {
+      this.listeningReviewPaths.set(JSON.parse((event as MessageEvent).data).reviews);
     });
     this.events.addEventListener('review-changed', event => {
       const changedPath = JSON.parse((event as MessageEvent).data).review;
@@ -121,6 +160,20 @@ export class ReviewService {
       }
       void this.getJson<ReviewList>('/api/reviews').then(list => this.reviews.set(list));
     });
+  }
+
+  // Anything may have changed while the server was down.
+  private async resync(): Promise<void> {
+    try {
+      this.reviews.set(await this.getJson<ReviewList>('/api/reviews'));
+      await this.loadListeners();
+      const path = this.selectedPath();
+      if (path) {
+        await this.openReview(path);
+      }
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : String(error));
+    }
   }
 
   private async refreshReview(): Promise<void> {

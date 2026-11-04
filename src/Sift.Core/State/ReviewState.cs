@@ -36,10 +36,11 @@ public sealed record UserThread(
     ThreadStatus Status,
     ThreadAnchor Anchor,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<ThreadMessage> Messages);
+    IReadOnlyList<ThreadMessage> Messages,
+    bool PushRequested = false);
 
 /// <summary>The reviewer's progress and conversations for one review. Owned by the app, never by the AI.</summary>
-public sealed record ReviewState(IReadOnlyList<string> ReviewedKeys, IReadOnlyList<UserThread> Threads)
+public sealed record ReviewState(IReadOnlyList<string> ReviewedKeys, IReadOnlyList<UserThread> Threads, DateTimeOffset? DoneRequestedAt = null)
 {
     public static readonly ReviewState Empty = new([], []);
 }

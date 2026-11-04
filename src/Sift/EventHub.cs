@@ -4,32 +4,10 @@ using Sift.Core;
 
 namespace Sift;
 
-/// <summary>
-/// AI-facing events go to stdout and the append-only events log; UI-facing notifications go to
-/// connected browsers over server-sent events.
-/// </summary>
+/// <summary>UI-facing notifications to connected browsers over server-sent events.</summary>
 public sealed class EventHub
 {
-    private readonly Lock writeLock = new();
     private readonly List<Channel<string>> browserSubscribers = [];
-    private readonly string eventsPath;
-
-    public EventHub(string eventsPath)
-    {
-        this.eventsPath = eventsPath;
-        Directory.CreateDirectory(Path.GetDirectoryName(eventsPath)!);
-    }
-
-    public void PublishToAi(string eventName, object payload)
-    {
-        var line = SerializeEvent(eventName, payload);
-        lock (writeLock)
-        {
-            Console.Out.WriteLine(line);
-            Console.Out.Flush();
-            File.AppendAllText(eventsPath, line + "\n");
-        }
-    }
 
     public void PublishToBrowsers(string eventName, object payload)
     {
@@ -75,8 +53,12 @@ public sealed class EventHub
             }
         }
     }
+}
 
-    private static string SerializeEvent(string eventName, object payload)
+/// <summary>One JSON line per event for Claude; the event name comes first so a grep or a glance finds it.</summary>
+public static class AiEvent
+{
+    public static string Format(string eventName, object payload)
     {
         var node = JsonSerializer.SerializeToNode(payload, SiftJson.FileOptions)!.AsObject();
         node.Insert(0, "event", eventName);

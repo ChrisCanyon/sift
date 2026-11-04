@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Sift.Core;
 using Sift.Core.Git;
+using Sift.Core.Listening;
 using Sift.Core.Review;
 using Sift.Core.State;
 
@@ -26,12 +29,16 @@ public static class ServerCommand
 {
     public const string RequestHeaderName = "X-Sift";
 
+    /// <summary>A stable address lets an open page reconnect after the server restarts.</summary>
+    public const int DefaultPort = 5317;
+
     public static async Task<int> RunAsync(string[] commandArguments)
     {
         var options = CommandLineOptions.Parse(commandArguments);
         var reviewStore = new ReviewStore(SiftPaths.ReviewsPath);
         var stateStore = new ReviewStateStore();
-        var eventHub = new EventHub(SiftPaths.EventsPath);
+        var eventHub = new EventHub();
+        var listenerRegistry = new ListenerRegistry(SiftPaths.ListenersPath);
 
         string? sourcePath = null;
         if (options.TryGetValue("source", out var sourceArgument))
@@ -46,7 +53,7 @@ public static class ServerCommand
             reviewStore.Register(sourcePath);
         }
 
-        var port = options.TryGetValue("port", out var portArgument) ? int.Parse(portArgument) : 0;
+        var port = options.TryGetValue("port", out var portArgument) ? int.Parse(portArgument) : ChooseDefaultPort();
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             ContentRootPath = AppContext.BaseDirectory,
@@ -54,7 +61,7 @@ public static class ServerCommand
         });
         builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
         builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1";
-        // Stdout is reserved for JSON events the AI reads.
+        // Stdout carries only the JSON ready line.
         builder.Logging.AddConsole(console => console.LogToStandardErrorThreshold = LogLevel.Trace);
         builder.Services.ConfigureHttpJsonOptions(json => SiftJson.Configure(json.SerializerOptions));
 
@@ -109,7 +116,6 @@ public static class ServerCommand
 
             var thread = await stateStore.AddThreadAsync(request.Review, request.Kind, request.Anchor, request.Body.Trim(), cancellationToken);
             eventHub.PublishToBrowsers("state-changed", new { review = request.Review });
-            eventHub.PublishToAi("thread", await BuildThreadEventAsync(views, request.Review, thread, thread.Messages[^1].Body, cancellationToken));
             return Results.Ok(thread);
         });
 
@@ -124,11 +130,6 @@ public static class ServerCommand
             {
                 var thread = await stateStore.AddMessageAsync(request.Review, threadId, request.Author, request.Body.Trim(), request.Status, cancellationToken);
                 eventHub.PublishToBrowsers("state-changed", new { review = request.Review });
-                if (request.Author == "you")
-                {
-                    eventHub.PublishToAi("thread-reply", await BuildThreadEventAsync(views, request.Review, thread, request.Body.Trim(), cancellationToken));
-                }
-
                 return Results.Ok(thread);
             }
             catch (ThreadNotFoundException exception)
@@ -163,35 +164,14 @@ public static class ServerCommand
                 return UnknownReview(request.Review);
             }
 
-            var state = await stateStore.LoadAsync(request.Review, cancellationToken);
-            var comments = state.Threads
-                .Where(thread => thread.Kind == ThreadKind.Pr && thread.Status != ThreadStatus.Pushed)
-                .Where(thread => request.ThreadIds is null || request.ThreadIds.Contains(thread.Id))
-                .Select(thread => new
-                {
-                    threadId = thread.Id,
-                    path = thread.Anchor.FilePath,
-                    line = thread.Anchor.Line,
-                    side = thread.Anchor.Side == "old" ? "LEFT" : "RIGHT",
-                    body = string.Join("\n\n", thread.Messages.Where(message => message.Author == "you").Select(message => message.Body)),
-                })
-                .ToList();
-
-            if (comments.Count == 0)
+            var requested = await stateStore.RequestPushAsync(request.Review, request.ThreadIds, cancellationToken);
+            if (requested.Count == 0)
             {
                 return Results.BadRequest(new { error = "No unpushed PR comments." });
             }
 
-            var view = (await views.GetAsync(request.Review, cancellationToken)).View;
-            eventHub.PublishToAi("push-to-pr", new
-            {
-                review = request.Review,
-                prUrl = view?.Source.PrUrl,
-                prNumber = view?.Source.PrNumber,
-                headSha = view?.Source.HeadSha,
-                comments,
-            });
-            return Results.Ok(new { queued = comments.Count });
+            eventHub.PublishToBrowsers("state-changed", new { review = request.Review });
+            return Results.Ok(new { queued = requested.Count });
         });
 
         app.MapPost("/api/done", async (ReviewActionRequest request, CancellationToken cancellationToken) =>
@@ -201,14 +181,7 @@ public static class ServerCommand
                 return UnknownReview(request.Review);
             }
 
-            var state = await stateStore.LoadAsync(request.Review, cancellationToken);
-            eventHub.PublishToAi("review-done", new
-            {
-                review = request.Review,
-                reviewedCount = state.ReviewedKeys.Count,
-                openThreads = state.Threads.Count(thread => thread.Status == ThreadStatus.Open),
-                unpushedPrComments = state.Threads.Count(thread => thread.Kind == ThreadKind.Pr && thread.Status != ThreadStatus.Pushed),
-            });
+            await stateStore.RequestDoneAsync(request.Review, cancellationToken);
             return Results.Ok();
         });
 
@@ -239,18 +212,21 @@ public static class ServerCommand
             }
         });
 
+        app.MapGet("/api/listeners", () => new { reviews = LiveListenerReviews(listenerRegistry) });
+
         app.MapGet("/api/events", (HttpContext context) => eventHub.StreamToBrowserAsync(context.Response, context.RequestAborted));
 
         app.MapFallbackToFile("index.html");
 
         using var reviewWatcher = WatchReviewFiles(reviewStore.RootPath, sourcePath, eventHub);
+        _ = PublishListenerChangesAsync(listenerRegistry, eventHub, app.Lifetime.ApplicationStopping);
 
         app.Lifetime.ApplicationStarted.Register(() =>
         {
             var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
             var serverInfo = new ServerInfo(new Uri(address).Port, Environment.ProcessId, address);
             File.WriteAllText(SiftPaths.ServerInfoPath, JsonSerializer.Serialize(serverInfo, SiftJson.Options));
-            eventHub.PublishToAi("ready", new { url = address, source = sourcePath, eventsLog = SiftPaths.EventsPath });
+            Console.Out.WriteLine(AiEvent.Format("ready", new { url = address, source = sourcePath }));
 
             if (!options.ContainsKey("no-open"))
             {
@@ -289,24 +265,45 @@ public static class ServerCommand
 
     private static IResult UnknownReview(string reviewPath) => Results.NotFound(new { error = $"Unknown review: {reviewPath}" });
 
-    private static async Task<object> BuildThreadEventAsync(ReviewViewCache views, string reviewPath, UserThread thread, string message, CancellationToken cancellationToken)
+    private static int ChooseDefaultPort()
     {
-        var view = (await views.GetAsync(reviewPath, cancellationToken)).View;
-        var source = view?.Source;
-        return new
+        try
         {
-            review = Path.GetFullPath(reviewPath),
-            threadId = thread.Id,
-            kind = thread.Kind,
-            message,
-            anchor = thread.Anchor,
-            repo = source?.RepoPath,
-            prUrl = source?.PrUrl,
-            headSha = source?.HeadSha,
-            diffCommand = source is null || view is null
-                ? null
-                : $"git -C \"{source.RepoPath}\" diff {view.FromSha} {source.HeadSha} -- \"{thread.Anchor.FilePath}\"",
-        };
+            var probe = new TcpListener(IPAddress.Loopback, DefaultPort);
+            probe.Start();
+            probe.Stop();
+            return DefaultPort;
+        }
+        catch (SocketException)
+        {
+            Console.Error.WriteLine($"Port {DefaultPort} is in use; using a random port. Pages open on the old address will not reconnect.");
+            return 0;
+        }
+    }
+
+    private static IReadOnlyList<string> LiveListenerReviews(ListenerRegistry registry) =>
+        registry.ListLive().Select(listener => listener.Review).Order(StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>Polls rather than watching files: a killed watcher changes no file, it just stops heartbeating.</summary>
+    private static async Task PublishListenerChangesAsync(ListenerRegistry registry, EventHub eventHub, CancellationToken stopping)
+    {
+        IReadOnlyList<string> published = [];
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stopping))
+            {
+                var live = LiveListenerReviews(registry);
+                if (!live.SequenceEqual(published, StringComparer.OrdinalIgnoreCase))
+                {
+                    published = live;
+                    eventHub.PublishToBrowsers("listeners-changed", new { reviews = live });
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private static FileSystemWatcher? WatchReviewFiles(string reviewsRoot, string? sourcePath, EventHub eventHub)

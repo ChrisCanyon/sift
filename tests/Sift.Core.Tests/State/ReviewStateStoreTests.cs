@@ -81,4 +81,21 @@ public sealed class ReviewStateStoreTests : IDisposable
 
         Assert.Equal(["a", "c"], state.ReviewedKeys);
     }
+
+    [Fact]
+    public async Task RequestPushAsync_FlagsOnlyUnpushedPrComments()
+    {
+        var question = await store.AddThreadAsync(reviewPath, ThreadKind.Ask, Anchor, "Why?");
+        var pushed = await store.AddThreadAsync(reviewPath, ThreadKind.Pr, Anchor, "Already posted.");
+        await store.SetThreadStatusAsync(reviewPath, pushed.Id, ThreadStatus.Pushed);
+        var selected = await store.AddThreadAsync(reviewPath, ThreadKind.Pr, Anchor, "Post this.");
+        var unselected = await store.AddThreadAsync(reviewPath, ThreadKind.Pr, Anchor, "Not yet.");
+
+        var requested = await store.RequestPushAsync(reviewPath, [selected.Id, pushed.Id, question.Id]);
+
+        Assert.Equal([selected.Id], requested.Select(thread => thread.Id));
+        var reloaded = await new ReviewStateStore().LoadAsync(reviewPath);
+        Assert.Equal([selected.Id], reloaded.Threads.Where(thread => thread.PushRequested).Select(thread => thread.Id));
+        Assert.DoesNotContain(reloaded.Threads, thread => thread.Id == unselected.Id && thread.PushRequested);
+    }
 }
