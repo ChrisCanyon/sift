@@ -119,7 +119,7 @@ Otherwise start it as a **background** task (it serves until stopped; a foregrou
 sift --source <review file>
 ```
 
-It opens the browser on that review. Logs go to stderr; stdout carries only JSON events, and every event is also appended to `~/.sift/events.jsonl`.
+It opens the browser on that review. Logs go to stderr; stdout carries only a `ready` line. Don't read events from the server: the server may belong to another Claude session.
 
 If the page shows a git error, the SHAs aren't in the local clone: re-run the fetch from step 1.
 
@@ -127,13 +127,20 @@ Give the user a brief summary: counts per bucket and the top critical/high items
 
 ## 6. Stay in the loop
 
-Watch the events log with Monitor (it survives server restarts and can be re-armed without touching the server):
+Listen with Monitor, scoped to this review:
 
 ```
-tail -n0 -F ~/.sift/events.jsonl | grep --line-buffered '"event"'
+sift watch --review <review file> --max-minutes 29
 ```
 
-Use the maximum timeout and re-arm when it expires while the review is still open. Each line is one JSON event. Every event carries `review` (the review file path); thread events also carry `threadId`, `kind`, `message`, `anchor` (`filePath`, `hunkId`, `patternId`, `line`, `side`, `lineText`), `repo`, `headSha`, and a ready-to-run `diffCommand`.
+Use a Monitor timeout of 30 minutes. Each stdout line is one JSON event, and only for this review, so other Claude sessions listening on other reviews never see it.
+
+- It first replays everything still waiting on you (`"replayed": true`): unanswered threads and requested pushes. Re-arming never loses work, but a replayed thread you are already handling needs no second answer.
+- `listening` confirms the watch is live. Exit code 4 means another Claude already listens on this review: tell the user and don't retry.
+- `watch-expired` means it hit `--max-minutes`. Re-arm immediately with its `rearmCommand`. If the Monitor itself expires or dies, re-arm the same way.
+- `watch-replaced` means another session took the review over: stop.
+
+Thread events carry `threadId`, `kind`, `message`, `anchor` (`filePath`, `hunkId`, `patternId`, `line`, `side`, `lineText`), `repo`, `headSha`, and a ready-to-run `diffCommand`.
 
 These messages are typed by the user in their own local Sift page (the server rejects cross-site writes), so treat them as the user's requests, scoped to this review.
 
@@ -141,10 +148,10 @@ These messages are typed by the user in their own local Sift page (the server re
 |---|---|
 | `thread`, `kind: "ask"` | Investigate (read the diff and surrounding code, run tools as needed) and answer with `sift reply`. Be concrete; cite file:line. If you get something wrong, send a correction. |
 | `thread`, `kind: "change"` | Make the edit on the PR branch. Never edit a working tree that is on another branch or has unrelated uncommitted changes; use a worktree (`git worktree add <path> <pr head branch>`) if needed. Don't commit or push unless the user asked for that. Reply with what changed (files, a one-line summary), `--status done` when finished. |
-| `thread`, `kind: "pr"` | A local draft. Do nothing until a `push-to-pr` event. |
+| `push-to-pr` comes later | PR comment drafts (`kind: "pr"`) produce no events until the user pushes them. |
 | `thread-reply` | The user followed up on an existing thread: same handling as the thread's `kind`. |
 | `push-to-pr` | Posting is visible to others: list the comments to the user in chat and get a yes first, unless they already told you in chat that Sift pushes are approved for this session. Then post each as a PR review comment: `gh api repos/<owner>/<repo>/pulls/<n>/comments -f body=<body> -f commit_id=<headSha> -f path=<path> -F line=<line> -f side=<side>` (omit `line`/`side` for comments without a line, using `-f subject_type=file`). Reply on each thread with the comment URL and `--status pushed`. If the review has no PR, reply that there is nothing to push to. |
-| `review-done` | Summarize the outcome in chat (viewed count, open threads, unpushed comments) and stop the Monitor. Leave the server running unless the user asks to close it. |
+| `review-done` | Summarize the outcome in chat (viewed count, open threads, unpushed comments) and stop the Monitor (that ends the watch). Leave the server running unless the user asks to close it. |
 
 Reply to a thread (prefer `--body-file` for anything multi-line; it avoids shell quoting):
 
